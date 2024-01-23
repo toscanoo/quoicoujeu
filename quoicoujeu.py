@@ -3,6 +3,7 @@
 import pygame
 import numpy as np
 
+
 pygame.init()
 pygame.display.set_caption("plato")
 
@@ -14,7 +15,7 @@ class Game:
         self.dict_bullets = {}
         self.index_bullets = 0
         self.todel = []
-        self.framerate = 20
+        self.framerate = 50
 
     def draw_square(self, position, color, size):
         rect2 = pygame.Rect(position[0] - size / 2, position[1] - size / 2, size, size)
@@ -25,25 +26,38 @@ class Game:
         self.screen = pygame.display.set_mode((self.width, self.height))
         self.screen.fill((0, 0, 0))
 
+    def verif_dist(self, pos1, pos2, dist):
+        x1 = pos1[0]
+        y1 = pos1[1]
+        x2 = pos2[0]
+        y2 = pos2[1]
+        return np.abs(x1 - x2) < dist and np.abs(y1 - y2) < dist
+
 
 class Player:
-    def __init__(self, dict_bindings):
-        self.color = (200, 200, 200)
-        self.pos = [100, 100]
-        self.speed = 1 / game.framerate
-        self.rot_speed = 1 / game.framerate * 0.015
-        self.angle = 0
+    def __init__(self, dict_features):
+        self.name = dict_features["name"]
+        self.color = dict_features["color"]
+        self.pos = dict_features["spawn"]
+        self.speed = 400 / game.framerate
+        self.rot_speed = 500 / game.framerate * 0.015
+        self.angle = dict_features["init_angle"]
         self.lsight = 40
         self.color_sight = (255, 0, 255)
         self.size_sight = 5
         self.size = 20
         self.horaire = 0
         self.antihoraire = 0
-        self.dict_bindings = dict_bindings
+        self.dict_bindings = dict_features
+        del self.dict_bindings["name"]
+        del self.dict_bindings["color"]
+        del self.dict_bindings["spawn"]
         self.XL = 0
         self.XR = 0
         self.YU = 0
+        self.tick = 0
         self.YD = 0
+        self.alive = True
 
     def rotation(self):  # horaire booléen true pour sens horaire, sinon false
         self.angle = self.angle + (self.horaire + self.antihoraire) * self.rot_speed
@@ -66,12 +80,18 @@ class Player:
         game.index_bullets += 1
         game.dict_bullets[game.index_bullets] = Bullet(self, game.index_bullets)
 
+    def is_dead(self, bullet):
+        dist = bullet.size / 2 + self.size / 2
+
+        if game.verif_dist(bullet.pos, self.pos, dist):
+            self.alive = False
+
 
 class Bullet:
     def __init__(self, player, index):
         self.color = (255, 0, 0)
         self.angle = player.angle
-        self.speed = 1 / game.framerate
+        self.speed = 450 / game.framerate
         self.pos = [
             player.pos[0] + 40 * np.cos(self.angle),
             player.pos[1] + 40 * np.sin(self.angle),
@@ -104,7 +124,8 @@ class Bullet:
 
 game = Game()
 clock = pygame.time.Clock()
-keybinds1 = {
+
+features1 = {
     "up": pygame.K_UP,
     "down": pygame.K_DOWN,
     "left": pygame.K_LEFT,
@@ -112,23 +133,32 @@ keybinds1 = {
     "rotate_left": pygame.K_k,
     "rotate_right": pygame.K_m,
     "shoot": pygame.K_o,
+    "name": "right player",
+    "spawn": [900, 500],
+    "color": (250, 250, 0),
+    "init_angle": np.pi,
 }
-keybinds2 = {
+
+features2 = {
     "up": pygame.K_z,
     "down": pygame.K_s,
     "left": pygame.K_q,
     "right": pygame.K_d,
     "rotate_left": pygame.K_f,
     "rotate_right": pygame.K_h,
-    "shoot": pygame.K_t,
+    "shoot": pygame.K_SPACE,
+    "name": "left player",
+    "spawn": [100, 100],
+    "color": (100, 100, 255),
+    "init_angle": 0,
 }
-player1 = Player(keybinds1)
-player2 = Player(keybinds2)
+
+player1 = Player(features1)
+player2 = Player(features2)
 game.init_screen()
 
-
-while True:
-    clock.tick(15)
+while player1.alive and player2.alive:
+    clock.tick(game.framerate)
     game.init_screen()
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
@@ -150,9 +180,7 @@ while True:
 
         if event.type == pygame.KEYUP:
             for player in [player1, player2]:
-                if event.key == (
-                    player.dict_bindings["left"]
-                ):  # ajouter condition bord de map
+                if event.key == (player.dict_bindings["left"]):
                     player.XL = 0
                 if event.key == (player.dict_bindings["right"]):
                     player.XR = 0
@@ -164,6 +192,7 @@ while True:
                     player.horaire = 0
                 if event.key == (player.dict_bindings["rotate_right"]):
                     player.antihoraire = 0
+
     for player in [player1, player2]:
         if player.pos[0] < 0:
             player.XL = 0
@@ -182,10 +211,19 @@ while True:
         game.dict_bullets[bullet_index].display()
         game.dict_bullets[bullet_index].move()
         game.dict_bullets[bullet_index].verif_visible()
+
+    for bullet_index in game.dict_bullets:
+        for player in [player1, player2]:
+            player.is_dead(game.dict_bullets[bullet_index])
+            if not player.alive:
+                print(str(player.name) + " lost")
+
     for index in game.todel:
-        # if index in game.dict_bullets:
+        # if index in gamoeo.dict_bullets:
         game.dict_bullets[index].kill()
     game.todel = []
+
     pygame.display.flip()
 
+pygame.time.wait(3000)
 pygame.quit()
